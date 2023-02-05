@@ -20,3 +20,13 @@ repos:
   rev: v0.0.277
   hooks:
     - id: ruff
+- repo: local
+  hooks:
+    - id: pyright
+      name: pyright
+      description: Run scripts/run-pyright.py to analyze repo files with the correct environment.
+      entry: scripts/run-pyright.py
+      language: python
+      types_or: [python, pyi]
+      require_serial: true
+      additional_dependencies: ['tomli', 'typing-extensions', 'pyright==1.1.292']
