@@ -30,27 +30,6 @@ if TYPE_CHECKING:
 
 
 @whitelist_for_serdes
-class StepOutputVersionData(NamedTuple):
-    step_output_handle: StepOutputHandle
-    version: str
-
-    @staticmethod
-    def get_version_list_from_dict(
-        step_output_versions: Mapping[StepOutputHandle, str]
-    ) -> Sequence["StepOutputVersionData"]:
-        return [
-            StepOutputVersionData(step_output_handle=step_output_handle, version=version)
-            for step_output_handle, version in step_output_versions.items()
-        ]
-
-    @staticmethod
-    def get_version_dict_from_list(
-        step_output_versions: Sequence["StepOutputVersionData"],
-    ) -> Mapping[StepOutputHandle, str]:
-        return {data.step_output_handle: data.version for data in step_output_versions}
-
-
-@whitelist_for_serdes
 class PastExecutionState(
     NamedTuple(
         "_PastExecutionState",
@@ -93,7 +72,7 @@ class KnownExecutionState(
             # step_key -> output_name -> mapping_keys
             ("dynamic_mappings", Mapping[str, Mapping[str, Optional[Sequence[str]]]]),
             # step_output_handle -> version
-            ("step_output_versions", Sequence[StepOutputVersionData]),
+            ("step_output_versions", Mapping[StepOutputHandle, str]),
             ("ready_outputs", Set[StepOutputHandle]),
             ("parent_state", Optional[PastExecutionState]),
         ],
@@ -108,7 +87,7 @@ class KnownExecutionState(
         cls,
         previous_retry_attempts: Optional[Mapping[str, int]] = None,
         dynamic_mappings: Optional[Mapping[str, Mapping[str, Optional[Sequence[str]]]]] = None,
-        step_output_versions: Optional[Sequence[StepOutputVersionData]] = None,
+        step_output_versions: Optional[Mapping[StepOutputHandle, str]] = None,
         ready_outputs: Optional[Set[StepOutputHandle]] = None,
         parent_state: Optional[PastExecutionState] = None,
     ):
@@ -130,8 +109,10 @@ class KnownExecutionState(
                 value_type=int,
             ),
             dynamic_mappings,
-            check.opt_sequence_param(
-                step_output_versions, "step_output_versions", of_type=StepOutputVersionData
+            check.opt_mapping_param(
+                step_output_versions,
+                "step_output_versions",
+                key_type=StepOutputHandle,
             ),
             check.opt_set_param(ready_outputs, "ready_outputs", StepOutputHandle),
             check.opt_inst_param(parent_state, "parent_state", PastExecutionState),
