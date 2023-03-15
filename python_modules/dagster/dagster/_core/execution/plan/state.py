@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import (
     TYPE_CHECKING,
+    Any,
     Dict,
     List,
     Mapping,
@@ -24,6 +25,7 @@ from dagster._core.execution.retries import RetryState
 from dagster._core.instance import DagsterInstance
 from dagster._core.storage.pipeline_run import DagsterRun
 from dagster._serdes import whitelist_for_serdes
+from dagster._serdes.serdes import FieldSerializer, WhitelistMap, pack_value, unpack_value
 
 if TYPE_CHECKING:
     from dagster._core.execution.plan.plan import StepHandleUnion
@@ -62,7 +64,39 @@ class PastExecutionState(
         return cast(Optional[PastExecutionState], self.parent_state)
 
 
-@whitelist_for_serdes
+# Previously, step_output_versions was sometimes internall represented as a list of
+# StepOutputVersionData objects. It would have to be converted to a dict for use. The sole purpose
+# of the `StepOutputVersion` objects was to make the dict key-value pairs serializable, since JSON
+# cannot handle non-string keys. The StepOutputVersionSerializer enables us to do away with
+# StepOutputVersionData and always represent step_output_versions as a dict, but we still need to
+# serialize to the old representation for backcompat.
+class StepOutputVersionSerializer(FieldSerializer):
+    def pack(
+        self, value: Mapping[StepOutputHandle, str], whitelist_map: WhitelistMap, descent_path: str
+    ) -> Sequence[Dict[str, Any]]:
+        return [
+            {
+                "__class__": "StepOutputVersionData",  # this class no longer exists
+                "step_output_handle": pack_value(
+                    k, whitelist_map, f"{descent_path}.{k.step_key}/{k.output_name}"
+                ),
+                "version": v,
+            }
+            for k, v in value.items()
+        ]
+
+    def unpack(
+        self, value: Sequence[Dict[str, Any]], whitelist_map: WhitelistMap, descent_path: str
+    ) -> Mapping[StepOutputHandle, str]:
+        return {
+            unpack_value(
+                item["step_output_handle"], StepOutputHandle, whitelist_map, descent_path
+            ): item["version"]
+            for item in value
+        }
+
+
+@whitelist_for_serdes(field_serializers={"step_output_versions": StepOutputVersionSerializer})
 class KnownExecutionState(
     NamedTuple(
         "_KnownExecutionState",
