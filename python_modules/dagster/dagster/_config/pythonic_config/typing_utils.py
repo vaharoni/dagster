@@ -11,8 +11,6 @@ from .utils import safe_is_subclass
 if TYPE_CHECKING:
     from dagster._config.pythonic_config import PartialResource
 
-from typing_extensions import Annotated
-
 
 # Since a metaclass is invoked by Resource before Resource or PartialResource is defined, we need to
 # define a temporary class to use as a placeholder for use in the initial metaclass invocation.

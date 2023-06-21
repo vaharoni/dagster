@@ -336,7 +336,7 @@ def _config_value_to_dict_representation(field: Optional[ModelField], value: Any
                 ).items()
             }
         else:
-            return {k: v for k, v in value._convert_to_config_dictionary().items()}
+            return {k: v for k, v in value._convert_to_config_dictionary().items()}  # noqa: SLF001
     elif isinstance(value, Enum):
         return value.name
 
@@ -455,7 +455,7 @@ def _resolve_required_resource_keys_for_resource(
     this mapping is used to obtain the top-level resource keys to depend on.
     """
     if isinstance(resource, AllowDelayedDependencies):
-        return resource._resolve_required_resource_keys(resource_id_to_key_mapping)
+        return resource._resolve_required_resource_keys(resource_id_to_key_mapping)  # noqa: SLF001
     return resource.required_resource_keys
 
 
@@ -675,6 +675,9 @@ class ConfigurableResourceFactoryResourceDefinition(ResourceDefinition, AllowDel
     def _is_dagster_maintained(self) -> bool:
         return self._dagster_maintained
 
+    def separate_resource_params(self, data: Dict[str, Any]) -> SeparatedResourceParams:
+        return self.configurable_resource_cls.separate_resource_params(data)
+
 
 class ConfigurableIOManagerFactoryResourceDefinition(IOManagerDefinition, AllowDelayedDependencies):
     def __init__(
@@ -725,6 +728,9 @@ class ConfigurableIOManagerFactoryResourceDefinition(IOManagerDefinition, AllowD
         self, resource_mapping: Mapping[int, str]
     ) -> AbstractSet[str]:
         return self._resolve_resource_keys(resource_mapping)
+
+    def separate_resource_params(self, data: Dict[str, Any]) -> SeparatedResourceParams:
+        return self.configurable_resource_cls.separate_resource_params(data)
 
 
 class ConfigurableResourceFactoryState(NamedTuple):
@@ -1084,7 +1090,7 @@ class ConfigurableResourceFactory(
                 " e.g. overriding yield_for_execution or teardown_after_execution"
             ),
         )
-        return cls(**context.resource_config or {})._initialize_and_run(context)
+        return cls(**context.resource_config or {})._initialize_and_run(context)  # noqa: SLF001
 
     @classmethod
     @contextlib.contextmanager
@@ -1108,7 +1114,9 @@ class ConfigurableResourceFactory(
                     yield my_resource
 
         """
-        with cls(**context.resource_config or {})._initialize_and_run_cm(context) as value:
+        with cls(**context.resource_config or {})._initialize_and_run_cm(  # noqa: SLF001
+            context
+        ) as value:
             yield value
 
     @classmethod
@@ -1249,7 +1257,7 @@ class PartialResource(Generic[TResValue], AllowDelayedDependencies, MakeConfigCa
             #     resource_cls, fields_to_omit=set(resource_pointers.keys())
             # ),
             resource_fn=resource_fn,
-            config_schema=curried_schema,
+            config_schema=curried_schema.as_field(),
             description=resource_cls.__doc__,
             nested_resources={k: v for k, v in resource_pointers.items()},
         )
@@ -1852,11 +1860,6 @@ def infer_schema_from_config_class(
     docstring = model_cls.__doc__.strip() if model_cls.__doc__ else None
 
     return Field(config=shape_cls(fields), description=description or docstring)
-
-
-class SeparatedResourceParams(NamedTuple):
-    resources: Dict[str, Any]
-    non_resources: Dict[str, Any]
 
 
 def _is_annotated_as_resource_type(annotation: Type) -> bool:
