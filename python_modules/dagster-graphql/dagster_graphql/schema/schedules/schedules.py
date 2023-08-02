@@ -85,7 +85,7 @@ class GrapheneSchedule(graphene.ObjectType):
                 else "UTC"
             ),
             description=external_schedule.description,
-            hasOutOfRangeInterval=has_out_of_range_cron_interval(external_schedule.cron_schedule)
+            hasOutOfRangeInterval=has_out_of_range_cron_interval(external_schedule.cron_schedule),
         )
 
     def resolve_id(self, _graphene_info: ResolveInfo):
