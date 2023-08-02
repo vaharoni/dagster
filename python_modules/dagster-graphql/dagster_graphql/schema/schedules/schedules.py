@@ -5,6 +5,7 @@ import graphene
 from dagster._core.host_representation import ExternalSchedule
 from dagster._core.scheduler.instigation import InstigatorState
 from dagster._seven import get_current_datetime_in_utc, get_timestamp_from_utc_datetime
+from dagster._utils.schedules import has_out_of_range_cron_interval
 
 from dagster_graphql.implementation.loader import RepositoryScopedBatchLoader
 
@@ -30,6 +31,7 @@ class GrapheneSchedule(graphene.ObjectType):
     mode = graphene.NonNull(graphene.String)
     execution_timezone = graphene.Field(graphene.String)
     description = graphene.String()
+    hasOutOfRangeInterval = graphene.NonNull(graphene.Boolean)
     scheduleState = graphene.NonNull(GrapheneInstigationState)
     partition_set = graphene.Field("dagster_graphql.schema.partition_sets.GraphenePartitionSet")
     futureTicks = graphene.NonNull(
@@ -83,6 +85,7 @@ class GrapheneSchedule(graphene.ObjectType):
                 else "UTC"
             ),
             description=external_schedule.description,
+            hasOutOfRangeInterval=has_out_of_range_cron_interval(external_schedule.cron_schedule)
         )
 
     def resolve_id(self, _graphene_info: ResolveInfo):

@@ -3496,6 +3496,7 @@ export type Schedule = {
   executionTimezone: Maybe<Scalars['String']>;
   futureTick: DryRunInstigationTick;
   futureTicks: DryRunInstigationTicks;
+  hasOutOfRangeInterval: Scalars['Boolean'];
   id: Scalars['ID'];
   mode: Scalars['String'];
   name: Scalars['String'];
@@ -10773,6 +10774,10 @@ export const buildSchedule = (
         : relationshipsToOmit.has('DryRunInstigationTicks')
         ? ({} as DryRunInstigationTicks)
         : buildDryRunInstigationTicks({}, relationshipsToOmit),
+    hasOutOfRangeInterval:
+      overrides && overrides.hasOwnProperty('hasOutOfRangeInterval')
+        ? overrides.hasOutOfRangeInterval!
+        : true,
     id:
       overrides && overrides.hasOwnProperty('id')
         ? overrides.id!

@@ -996,6 +996,12 @@ def define_schedules():
         job_name="no_config_job",
     )
 
+    no_config_invalid_interval_schedule = ScheduleDefinition(
+        name="no_config_invalid_interval_schedule",
+        cron_schedule="*/90 * * * *",
+        job_name="no_config_job",
+    )
+
     def get_cron_schedule(
         delta: datetime.timedelta, schedule_type: Literal["daily", "hourly"] = "daily"
     ) -> str:
@@ -1092,6 +1098,7 @@ def define_schedules():
         no_config_job_hourly_schedule,
         no_config_job_hourly_schedule_with_config_fn,
         no_config_should_execute,
+        no_config_invalid_interval_schedule,
         dynamic_config,
         should_execute_error_schedule,
         tagged_job_schedule,

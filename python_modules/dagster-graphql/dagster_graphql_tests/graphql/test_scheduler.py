@@ -84,6 +84,7 @@ query getSchedule($scheduleSelector: ScheduleSelector!, $ticksAfter: Float) {
       partitionSet {
         name
       }
+      hasOutOfRangeInterval
       executionTimezone
       futureTicks(limit: 3, cursor: $ticksAfter) {
         results {
@@ -616,6 +617,22 @@ def test_composite_cron_schedule_definition(graphql_context):
     assert result.data
     assert result.data["scheduleOrError"]["__typename"] == "Schedule"
     assert result.data["scheduleOrError"]["scheduleState"]
+
+
+def test_invalid_range_definition(graphql_context):
+    # tests the invalid interval schedule, which does not error, but is marked with having an out
+    # of range interval, which we can use to display a warning in dagit on the schedule details
+    context = graphql_context
+
+    schedule_selector = infer_schedule_selector(context, "no_config_invalid_interval_schedule")
+
+    # fetch schedule before reconcile
+    result = execute_dagster_graphql(
+        context, GET_SCHEDULE_QUERY, variables={"scheduleSelector": schedule_selector}
+    )
+    assert result.data
+    assert result.data["scheduleOrError"]["__typename"] == "Schedule"
+    assert result.data["scheduleOrError"]["hasOutOfRangeInterval"]
 
 
 def test_next_tick(graphql_context):

@@ -1413,6 +1413,7 @@ type Schedule {
   mode: String!
   executionTimezone: String
   description: String
+  hasOutOfRangeInterval: Boolean!
   scheduleState: InstigationState!
   partitionSet: PartitionSet
   futureTicks(cursor: Float, limit: Int, until: Float): DryRunInstigationTicks!
