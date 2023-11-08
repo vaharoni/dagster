@@ -359,7 +359,7 @@ class AssetsDefinition(ResourceAddable, RequiresResources, IHasInternalInit):
             is_subset=is_subset,
         )
 
-    def __call__(self, *args: object, **kwargs: object) -> object:
+    def __call__(self, *args: object, **kwargs: object) -> Any:
         from .composition import is_in_composition
         from .graph_definition import GraphDefinition
 
