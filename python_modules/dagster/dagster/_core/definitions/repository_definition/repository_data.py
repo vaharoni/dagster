@@ -247,6 +247,7 @@ class CachingRepositoryData(RepositoryData):
                 resource keys to defintions, for resources which should be displayed in the UI.
         """
         from dagster._core.definitions import AssetsDefinition
+        from dagster._core.definitions.external_asset import create_external_asset_from_source_asset
 
         check.mapping_param(jobs, "jobs", key_type=str, value_type=(JobDefinition, FunctionType))
         check.mapping_param(
@@ -301,8 +302,14 @@ class CachingRepositoryData(RepositoryData):
         # load all schedules to force validation
         self._schedules.get_all_definitions()
 
-        self._source_assets_by_key = source_assets_by_key
-        self._assets_defs_by_key = assets_defs_by_key
+        self._source_assets_by_key = {}
+        converted_source_assets = {
+            k: create_external_asset_from_source_asset(v) for k, v in source_assets_by_key.items()
+        }
+        self._assets_defs_by_key = {
+            **assets_defs_by_key,
+            **converted_source_assets,
+        }
         self._top_level_resources = top_level_resources
         self._utilized_env_vars = utilized_env_vars
         self._resource_key_mapping = resource_key_mapping

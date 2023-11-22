@@ -1,3 +1,4 @@
+import math
 from typing import List, Sequence
 
 from dagster import _check as check
@@ -7,6 +8,8 @@ from dagster._core.definitions.asset_spec import (
     AssetSpec,
 )
 from dagster._core.definitions.assets import AssetsDefinition
+from dagster._core.definitions.auto_materialize_policy import AutoMaterializePolicy
+from dagster._core.definitions.auto_materialize_rule import AutoMaterializeRule
 from dagster._core.definitions.decorators.asset_decorator import asset, multi_asset
 from dagster._core.definitions.events import Output
 from dagster._core.definitions.source_asset import (
@@ -16,6 +19,16 @@ from dagster._core.definitions.source_asset import (
 )
 from dagster._core.errors import DagsterInvariantViolationError
 from dagster._core.execution.context.compute import AssetExecutionContext
+
+
+def is_external_asset(assets_def: AssetsDefinition) -> bool:
+    # All keys will have this have the metadata marker if any do.
+    first_key = next(iter(assets_def.keys))
+    metadata = assets_def.metadata_by_key.get(first_key, {})
+    return metadata[SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE] in [
+        AssetExecutionType.UNEXECUTABLE.value,
+        AssetExecutionType.OBSERVATION.value,
+    ]
 
 
 def external_asset_from_spec(spec: AssetSpec) -> AssetsDefinition:
@@ -132,17 +145,39 @@ def external_assets_from_specs(specs: Sequence[AssetSpec]) -> List[AssetsDefinit
     return assets_defs
 
 
-def create_external_asset_from_source_asset(source_asset: SourceAsset) -> AssetsDefinition:
-    check.invariant(
-        source_asset.auto_observe_interval_minutes is None,
-        "Automatically observed external assets not supported yet: auto_observe_interval_minutes"
-        " should be None",
-    )
+_MINUTES_IN_DAY = 24 * 60
+_MINUTES_IN_MONTH = _MINUTES_IN_DAY * 31
 
+
+def _auto_observe_interval_minutes_to_cron(interval_minutes: float) -> str:
+    if interval_minutes < 60:
+        minutes = math.floor(interval_minutes)
+        return f"*/{minutes} * * * *"
+    elif interval_minutes >= 60 and interval_minutes < _MINUTES_IN_DAY:
+        hour = math.floor(interval_minutes / 60)
+        return f"0 {hour} * * *"
+    elif interval_minutes >= _MINUTES_IN_DAY and interval_minutes < _MINUTES_IN_MONTH:
+        day = math.floor(interval_minutes / _MINUTES_IN_DAY)
+        return f"0 0 {day} * *"
+    else:  # everything else is monthly
+        return "0 0 0 * *"
+
+
+def create_external_asset_from_source_asset(source_asset: SourceAsset) -> AssetsDefinition:
     injected_metadata = (
         {SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE: AssetExecutionType.UNEXECUTABLE.value}
         if source_asset.observe_fn is None
         else {SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE: AssetExecutionType.OBSERVATION.value}
+    )
+
+    auto_materialize_policy = (
+        AutoMaterializePolicy.lazy().with_rules(
+            AutoMaterializeRule.materialize_on_cron(
+                _auto_observe_interval_minutes_to_cron(source_asset.auto_observe_interval_minutes)
+            )
+        )
+        if source_asset.auto_observe_interval_minutes
+        else None
     )
 
     kwargs = {
@@ -154,6 +189,7 @@ def create_external_asset_from_source_asset(source_asset: SourceAsset) -> Assets
         "group_name": source_asset.group_name,
         "description": source_asset.description,
         "partitions_def": source_asset.partitions_def,
+        "auto_materialize_policy": auto_materialize_policy,
     }
 
     if source_asset.io_manager_def:

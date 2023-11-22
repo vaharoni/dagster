@@ -174,6 +174,7 @@ export const LaunchAssetExecutionButton = ({
     onClick: () => void;
   }[];
 }) => {
+  console.log('LaunchAssetExecutionButton', scope);
   const {onClick, loading, launchpadElement} = useMaterializationAction(preferredJobName);
   const [isOpen, setIsOpen] = React.useState(false);
 

@@ -95,12 +95,12 @@ class RepositoryDefinition:
 
     def __init__(
         self,
-        name,
+        name: str,
         *,
-        repository_data,
-        description=None,
-        metadata=None,
-        repository_load_data=None,
+        repository_data: RepositoryData,
+        description: Optional[str] = None,
+        metadata: Optional[Mapping[str, Any]] = None,
+        repository_load_data: Optional[RepositoryLoadData] = None,
     ):
         self._name = check_valid_name(name)
         self._description = check.opt_str_param(description, "description")

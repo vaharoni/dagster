@@ -1295,7 +1295,7 @@ class ExternalAssetNode(
         )
 
     @property
-    def is_executable(self) -> bool:
+    def execution_type(self) -> AssetExecutionType:
         metadata_value = self.metadata.get(SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE)
         if not metadata_value:
             varietal_text = None
@@ -1303,8 +1303,19 @@ class ExternalAssetNode(
             check.inst(metadata_value, TextMetadataValue)  # for guaranteed runtime error
             assert isinstance(metadata_value, TextMetadataValue)  # for type checker
             varietal_text = metadata_value.value
+        return (
+            AssetExecutionType.MATERIALIZATION
+            if varietal_text is None
+            else AssetExecutionType(varietal_text)
+        )
 
-        return AssetExecutionType.is_executable(varietal_text)
+    @property
+    def is_external(self) -> bool:
+        return self.execution_type != AssetExecutionType.MATERIALIZATION
+
+    @property
+    def is_executable(self) -> bool:
+        return AssetExecutionType.is_executable(self.execution_type)
 
 
 ResourceJobUsageMap = Dict[str, List[ResourceJobUsageEntry]]

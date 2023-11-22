@@ -22,6 +22,7 @@ from typing import (
 import toposort
 
 import dagster._check as check
+from dagster._core.definitions.asset_spec import AssetExecutionType
 from dagster._core.definitions.auto_materialize_policy import AutoMaterializePolicy
 from dagster._core.errors import DagsterInvalidInvocationError
 from dagster._core.instance import DynamicPartitionsStore
@@ -87,6 +88,7 @@ class AssetGraph:
         required_assets_and_checks_by_key: Mapping[
             AssetKeyOrCheckKey, AbstractSet[AssetKeyOrCheckKey]
         ],
+        execution_types_by_key: Mapping[AssetKey, AssetExecutionType],
     ):
         self._asset_dep_graph = asset_dep_graph
         self._source_asset_keys = source_asset_keys
@@ -100,10 +102,8 @@ class AssetGraph:
         self._is_observable_by_key = is_observable_by_key
         self._auto_observe_interval_minutes_by_key = auto_observe_interval_minutes_by_key
         # source assets keys can sometimes appear in the upstream dict
-        self._materializable_asset_keys = (
-            self._asset_dep_graph["upstream"].keys() - self.source_asset_keys
-        )
         self._required_assets_and_checks_by_key = required_assets_and_checks_by_key
+        self._execution_types_by_key = execution_types_by_key
 
     @property
     def asset_dep_graph(self) -> DependencyGraph[AssetKey]:
@@ -150,6 +150,10 @@ class AssetGraph:
     def backfill_policies_by_key(self) -> Mapping[AssetKey, Optional[BackfillPolicy]]:
         return self._backfill_policies_by_key
 
+    @property
+    def execution_types_by_key(self) -> Mapping[AssetKey, AssetExecutionType]:
+        return self._execution_types_by_key
+
     def get_auto_observe_interval_minutes(self, asset_key: AssetKey) -> Optional[float]:
         return self._auto_observe_interval_minutes_by_key.get(asset_key)
 
@@ -174,6 +178,7 @@ class AssetGraph:
         required_assets_and_checks_by_key: Dict[
             AssetKeyOrCheckKey, AbstractSet[AssetKeyOrCheckKey]
         ] = {}
+        execution_types_by_key: Dict[AssetKey, AssetExecutionType] = {}
 
         for asset in all_assets:
             if isinstance(asset, SourceAsset):
@@ -184,6 +189,7 @@ class AssetGraph:
                 auto_observe_interval_minutes_by_key[
                     asset.key
                 ] = asset.auto_observe_interval_minutes
+                execution_types_by_key[asset.key] = AssetExecutionType.UNEXECUTABLE
             else:  # AssetsDefinition
                 assets_defs.append(asset)
                 partition_mappings_by_key.update(
@@ -195,6 +201,8 @@ class AssetGraph:
                 auto_materialize_policies_by_key.update(asset.auto_materialize_policies_by_key)
                 backfill_policies_by_key.update({key: asset.backfill_policy for key in asset.keys})
                 code_versions_by_key.update(asset.code_versions_by_key)
+                for key in asset.keys:
+                    execution_types_by_key[key] = asset.asset_execution_type_for_asset(key)
 
                 if not asset.can_subset:
                     all_required_keys = {*asset.check_keys, *asset.keys}
@@ -218,15 +226,34 @@ class AssetGraph:
             is_observable_by_key=is_observable_by_key,
             auto_observe_interval_minutes_by_key=auto_observe_interval_minutes_by_key,
             required_assets_and_checks_by_key=required_assets_and_checks_by_key,
+            execution_types_by_key=execution_types_by_key,
         )
 
     @property
+    def executable_asset_keys(self) -> AbstractSet[AssetKey]:
+        return {
+            k
+            for k, v in self._execution_types_by_key.items()
+            if AssetExecutionType.is_executable(v)
+        }
+
+    def is_executable(self, asset_key: AssetKey) -> bool:
+        return AssetExecutionType.is_executable(self._execution_types_by_key[asset_key])
+
+    @property
     def materializable_asset_keys(self) -> AbstractSet[AssetKey]:
-        return self._materializable_asset_keys
+        return {
+            k
+            for k, v in self._execution_types_by_key.items()
+            if v == AssetExecutionType.MATERIALIZATION
+        }
+
+    def is_materializable(self, asset_key: AssetKey) -> bool:
+        return self._execution_types_by_key[asset_key] == AssetExecutionType.MATERIALIZATION
 
     @property
     def all_asset_keys(self) -> AbstractSet[AssetKey]:
-        return self._materializable_asset_keys | self.source_asset_keys
+        return self._execution_types_by_key.keys()
 
     def get_partitions_def(self, asset_key: AssetKey) -> Optional[PartitionsDefinition]:
         return self._partitions_defs_by_key.get(asset_key)
@@ -275,7 +302,10 @@ class AssetGraph:
         )
 
     def is_observable(self, asset_key: AssetKey) -> bool:
-        return self._is_observable_by_key.get(asset_key, False)
+        return (
+            self._is_observable_by_key.get(asset_key, False)
+            or self._execution_types_by_key[asset_key] == AssetExecutionType.OBSERVATION
+        )
 
     def get_children(self, asset_key: AssetKey) -> AbstractSet[AssetKey]:
         """Returns all assets that depend on the given asset."""
@@ -718,6 +748,7 @@ class InternalAssetGraph(AssetGraph):
         required_assets_and_checks_by_key: Mapping[
             AssetKeyOrCheckKey, AbstractSet[AssetKeyOrCheckKey]
         ],
+        execution_types_by_key: Mapping[AssetKey, AssetExecutionType],
     ):
         super().__init__(
             asset_dep_graph=asset_dep_graph,
@@ -732,6 +763,7 @@ class InternalAssetGraph(AssetGraph):
             is_observable_by_key=is_observable_by_key,
             auto_observe_interval_minutes_by_key=auto_observe_interval_minutes_by_key,
             required_assets_and_checks_by_key=required_assets_and_checks_by_key,
+            execution_types_by_key=execution_types_by_key,
         )
         self._assets = assets
         self._source_assets = source_assets

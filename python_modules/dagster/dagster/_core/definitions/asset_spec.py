@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Iterable, Mapping, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, NamedTuple, Optional, Union
 
 import dagster._check as check
 from dagster._annotations import PublicAttr
@@ -30,8 +30,13 @@ class AssetExecutionType(Enum):
     MATERIALIZATION = "MATERIALIZATION"
 
     @staticmethod
-    def is_executable(varietal_str: Optional[str]) -> bool:
-        return AssetExecutionType.str_to_enum(varietal_str) in {
+    def is_executable(execution_type: Optional[Union[str, "AssetExecutionType"]]) -> bool:
+        enum_value = (
+            AssetExecutionType.str_to_enum(execution_type)
+            if not isinstance(execution_type, AssetExecutionType)
+            else execution_type
+        )
+        return enum_value in {
             AssetExecutionType.MATERIALIZATION,
             AssetExecutionType.OBSERVATION,
         }
