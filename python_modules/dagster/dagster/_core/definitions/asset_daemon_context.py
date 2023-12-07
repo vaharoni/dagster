@@ -569,7 +569,11 @@ def build_run_requests(
                 )
             )
 
-    return run_requests
+    # We don't make public guarantees about sort order, but make an effort to provide a consistent
+    # ordering that puts earlier time partitions before later time partitions. Note that, with dates
+    # formatted like 12/7/2023, the run requests won't end up in time order. Sorting by converting
+    # to time windows would be more expensive, so we don't do it here.
+    return sorted(run_requests, key=lambda x: x.partition_key)
 
 
 def build_run_requests_with_backfill_policies(

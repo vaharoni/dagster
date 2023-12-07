@@ -1449,3 +1449,35 @@ def test_asset_backfill_serialization_deserialization():
         deserialize_value(serialize_value(asset_backfill_data), AssetBackfillData)
         == asset_backfill_data
     )
+
+
+def test_run_request_partition_order():
+    @asset(partitions_def=DailyPartitionsDefinition("2023-10-01"))
+    def foo():
+        pass
+
+    @asset(partitions_def=DailyPartitionsDefinition("2023-10-01"), deps={foo})
+    def foo_child():
+        pass
+
+    assets_by_repo_name = {"repo1": [foo], "repo2": [foo_child]}
+    asset_graph = get_asset_graph(assets_by_repo_name)
+
+    asset_backfill_data = AssetBackfillData.from_asset_partitions(
+        asset_graph=asset_graph,
+        partition_names=["2023-10-02", "2023-10-01", "2023-10-03"],
+        asset_selection=[foo.key, foo_child.key],
+        dynamic_partitions_store=MagicMock(),
+        all_partitions=False,
+        backfill_start_time=pendulum.datetime(2023, 10, 4, 0, 0, 0),
+    )
+
+    result = execute_asset_backfill_iteration_consume_generator(
+        "apple", asset_backfill_data, asset_graph, DagsterInstance.ephemeral()
+    )
+
+    assert [run_request.partition_key for run_request in result.run_requests] == [
+        "2023-10-01",
+        "2023-10-02",
+        "2023-10-03",
+    ]
