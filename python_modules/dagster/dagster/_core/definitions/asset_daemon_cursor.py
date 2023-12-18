@@ -10,7 +10,6 @@ from typing import (
     TypeVar,
 )
 
-from dagster._core.definitions.asset_graph_subset import AssetGraphSubset
 from dagster._core.definitions.asset_subset import AssetSubset
 from dagster._core.definitions.auto_materialize_rule_evaluation import (
     BackcompatAutoMaterializeAssetEvaluationSerializer,
@@ -25,10 +24,9 @@ from dagster._serdes.serdes import (
     whitelist_for_serdes,
 )
 
-from .asset_graph import AssetGraph
-
 if TYPE_CHECKING:
     from .asset_condition import AssetCondition, AssetConditionEvaluation, AssetConditionSnapshot
+    from .asset_graph import AssetGraph
 
 T = TypeVar("T")
 
@@ -182,12 +180,13 @@ def get_backcompat_asset_condition_cursor(
 
 
 def backcompat_deserialize_asset_daemon_cursor_str(
-    cursor_str: str, asset_graph: Optional[AssetGraph], default_evaluation_id: int
+    cursor_str: str, asset_graph: Optional["AssetGraph"], default_evaluation_id: int
 ) -> AssetDaemonCursor:
     """This serves as a backcompat layer for deserializing the old cursor format. Some information
     is impossible to fully recover, this will recover enough to continue operating as normal.
     """
     from .asset_condition import AssetConditionEvaluationWithRunIds
+    from .asset_graph_subset import AssetGraphSubset
 
     data = json.loads(cursor_str)
 

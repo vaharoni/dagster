@@ -20,12 +20,10 @@ from dagster._core.definitions.events import AssetKey
 from dagster._core.definitions.metadata import MetadataMapping, MetadataValue
 from dagster._serdes.serdes import whitelist_for_serdes
 
-from .asset_condition_evaluation_context import (
-    AssetConditionEvaluationContext,
-)
 from .asset_subset import AssetSubset
 
 if TYPE_CHECKING:
+    from .asset_condition_evaluation_context import AssetConditionEvaluationContext
     from .auto_materialize_rule import AutoMaterializeRule
 
 

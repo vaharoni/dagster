@@ -48,6 +48,7 @@ from dagster._core.definitions import (
 )
 from dagster._core.definitions.asset_check_spec import AssetCheckKey
 from dagster._core.definitions.asset_checks import AssetChecksDefinition
+from dagster._core.definitions.asset_condition import AssetCondition
 from dagster._core.definitions.asset_sensor_definition import AssetSensorDefinition
 from dagster._core.definitions.asset_spec import (
     SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE,
@@ -1194,6 +1195,7 @@ class ExternalAssetNode(
             ("atomic_execution_unit_id", Optional[str]),
             ("required_top_level_resources", Optional[Sequence[str]]),
             ("auto_materialize_policy", Optional[AutoMaterializePolicy]),
+            ("asset_condition", Optional[AssetCondition]),
             ("backfill_policy", Optional[BackfillPolicy]),
             ("auto_observe_interval_minutes", Optional[float]),
         ],
@@ -1228,6 +1230,7 @@ class ExternalAssetNode(
         atomic_execution_unit_id: Optional[str] = None,
         required_top_level_resources: Optional[Sequence[str]] = None,
         auto_materialize_policy: Optional[AutoMaterializePolicy] = None,
+        asset_condition: Optional[AssetCondition] = None,
         backfill_policy: Optional[BackfillPolicy] = None,
         auto_observe_interval_minutes: Optional[float] = None,
     ):
@@ -1284,6 +1287,9 @@ class ExternalAssetNode(
                 auto_materialize_policy,
                 "auto_materialize_policy",
                 AutoMaterializePolicy,
+            ),
+            asset_condition=check.opt_inst_param(
+                asset_condition, "asset_condition", AssetCondition
             ),
             backfill_policy=check.opt_inst_param(
                 backfill_policy, "backfill_policy", BackfillPolicy
@@ -1534,7 +1540,7 @@ def external_asset_nodes_from_defs(
     asset_info_by_asset_key: Dict[AssetKey, AssetOutputInfo] = dict()
     freshness_policy_by_asset_key: Dict[AssetKey, FreshnessPolicy] = dict()
     metadata_by_asset_key: Dict[AssetKey, MetadataUserInput] = dict()
-    auto_materialize_policy_by_asset_key: Dict[AssetKey, AutoMaterializePolicy] = dict()
+    asset_conditions_by_asset_key: Dict[AssetKey, AssetCondition] = dict()
     backfill_policy_by_asset_key: Dict[AssetKey, Optional[BackfillPolicy]] = dict()
 
     deps: Dict[AssetKey, Dict[AssetKey, ExternalAssetDependency]] = defaultdict(dict)
@@ -1589,7 +1595,7 @@ def external_asset_nodes_from_defs(
         for assets_def in asset_layer.assets_defs_by_key.values():
             metadata_by_asset_key.update(assets_def.metadata_by_key)
             freshness_policy_by_asset_key.update(assets_def.freshness_policies_by_key)
-            auto_materialize_policy_by_asset_key.update(assets_def.auto_materialize_policies_by_key)
+            asset_conditions_by_asset_key.update(assets_def.asset_conditions_by_key)
             backfill_policy_by_asset_key.update(
                 {key: assets_def.backfill_policy for key in assets_def.keys}
             )
@@ -1721,7 +1727,7 @@ def external_asset_nodes_from_defs(
                 # such assets are part of the default group
                 group_name=group_name_by_asset_key.get(asset_key, DEFAULT_GROUP_NAME),
                 freshness_policy=freshness_policy_by_asset_key.get(asset_key),
-                auto_materialize_policy=auto_materialize_policy_by_asset_key.get(asset_key),
+                asset_condition=asset_conditions_by_asset_key.get(asset_key),
                 backfill_policy=backfill_policy_by_asset_key.get(asset_key),
                 atomic_execution_unit_id=atomic_execution_unit_ids_by_key.get(asset_key),
                 required_top_level_resources=required_top_level_resources,
