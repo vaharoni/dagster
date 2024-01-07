@@ -6,7 +6,12 @@ from enum import Enum
 from subprocess import PIPE, STDOUT, Popen
 from typing import IO, Any, AnyStr, Dict, Generator, Iterator, List, Optional
 
-from dagster import ConfigurableResource, PermissiveConfig, get_dagster_logger
+from dagster import (
+    ConfigurableResource,
+    Output,
+    PermissiveConfig,
+    get_dagster_logger,
+)
 from dagster._annotations import experimental
 from dagster._config.field_utils import EnvVar
 from dagster._utils.env import environ
@@ -120,6 +125,33 @@ class _SlingSyncBase:
             proc.wait()
             if proc.returncode != 0:
                 raise Exception("Sling command failed with error code %s", proc.returncode)
+
+    def stream(
+        self,
+        source_stream: str,
+        target_object: str,
+        mode: SlingMode,
+        primary_key: Optional[List[str]] = None,
+        update_key: Optional[str] = None,
+        source_options: Optional[Dict[str, Any]] = None,
+        target_options: Optional[Dict[str, Any]] = None,
+    ):
+        logs = ""
+        for line in self.sync(
+            source_stream,
+            target_object,
+            mode,
+            primary_key,
+            update_key,
+            source_options,
+            target_options,
+        ):
+            logger.info(line)
+            logs += line
+            # TODO: capture metadata here
+        # TODO: allow a fn here
+        output_name = re.sub(r"[^a-zA-Z0-9_]", "_", target_object)
+        yield Output(value=None, output_name=output_name, metadata={"logs": logs})
 
     def sync(
         self,
@@ -261,6 +293,8 @@ class SlingResource(ConfigurableResource, _SlingSyncBase):
                 "SLING_TARGET": json.dumps(sling_target),
             }
         ):
+            logger.debug(f"SLING_SOURCE: {json.dumps(sling_source)}")
+            logger.debug(f"SLING_TARGET: {json.dumps(sling_target)}")
             yield
 
     def _sync(
