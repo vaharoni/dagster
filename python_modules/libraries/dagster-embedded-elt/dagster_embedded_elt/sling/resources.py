@@ -130,6 +130,7 @@ class _SlingSyncBase:
 
     def stream(
         self,
+        *,
         dagster_sling_translator: DagsterSlingTranslator,
         source_stream: str,
         target_object: str,
