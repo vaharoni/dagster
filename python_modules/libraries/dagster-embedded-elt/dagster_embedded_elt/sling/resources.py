@@ -8,7 +8,7 @@ from typing import IO, Any, AnyStr, Dict, Generator, Iterator, List, Optional
 
 from dagster import (
     ConfigurableResource,
-    Output,
+    MaterializeResult,
     PermissiveConfig,
     get_dagster_logger,
 )
@@ -17,6 +17,8 @@ from dagster._config.field_utils import EnvVar
 from dagster._utils.env import environ
 from pydantic import ConfigDict, Extra, Field
 from sling import Sling
+
+from dagster_embedded_elt.sling.asset_decorator import DagsterSlingTranslator
 
 logger = get_dagster_logger()
 
@@ -128,6 +130,7 @@ class _SlingSyncBase:
 
     def stream(
         self,
+        dagster_sling_translator: DagsterSlingTranslator,
         source_stream: str,
         target_object: str,
         mode: SlingMode,
@@ -148,10 +151,10 @@ class _SlingSyncBase:
         ):
             logger.info(line)
             logs += line
-            # TODO: capture metadata here
-        # TODO: allow a fn here
-        output_name = re.sub(r"[^a-zA-Z0-9_]", "_", target_object)
-        yield Output(value=None, output_name=output_name, metadata={"logs": logs})
+            # TODO: capture actual metadata here
+
+        output_name = dagster_sling_translator.get_asset_key_for_target(target_object)
+        yield MaterializeResult(asset_key=output_name, metadata={"logs": logs})
 
     def sync(
         self,
