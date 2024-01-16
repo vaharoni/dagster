@@ -11,17 +11,16 @@ from dagster import (
     multi_asset,
 )
 from dagster._annotations import public
-from dagster._core.definitions.asset_dep import CoercibleToAssetDep
 from dagster._core.definitions.auto_materialize_policy import AutoMaterializePolicy
 
 from dagster_embedded_elt.sling.sling_replication import SlingReplicationParam, validate_replication
 
 
-def get_streams_from_replication(replication: Mapping[str, Any]) -> Iterable[str]:
+def get_streams_from_replication(replication_config: Mapping[str, Any]) -> Iterable[str]:
     """Returns the set of streams from a Sling replication config."""
     keys = []
 
-    for key, value in replication["streams"].items():
+    for key, value in replication_config["streams"].items():
         if isinstance(value, dict):
             asset_key_config = value.get("meta", {}).get("dagster", {}).get("asset_key", [])
             keys.append(asset_key_config if asset_key_config else key)
@@ -31,6 +30,7 @@ def get_streams_from_replication(replication: Mapping[str, Any]) -> Iterable[str
 
 
 class DagsterSlingTranslator:
+    @public
     @classmethod
     def sanitize_stream_name(cls, stream_name: str) -> str:
         """A function that takes a stream name from a Sling replication config and returns a
@@ -118,9 +118,8 @@ class DagsterSlingTranslator:
 
 def sling_assets(
     *,
-    replication: SlingReplicationParam,
+    replication_config: SlingReplicationParam,
     dagster_sling_translator: DagsterSlingTranslator = DagsterSlingTranslator(),
-    deps: Optional[Iterable[CoercibleToAssetDep]] = None,
     name: Optional[str] = None,
     partitions_def: Optional[PartitionsDefinition] = None,
     backfill_policy: Optional[BackfillPolicy] = None,
@@ -134,7 +133,7 @@ def sling_assets(
     described by a Sling replication config.
 
     Args:
-        replication: SlingReplicationParam: A path to a Sling replication config, or a dictionary of a replication config.
+        replication_config: SlingReplicationParam: A path to a Sling replication config, or a dictionary of a replication config.
         dagster_sling_translator: DagsterSlingTranslator: Allows customization of how to map a Sling stream to a Dagster AssetKey.
         deps: Optional[Iterable[CoercibleToAssetDep]]: A list of dependencies for these assets
         name: Optional[str]: The name of the asset.
@@ -149,8 +148,8 @@ def sling_assets(
     Examples:
         # TODO: Add examples once API is complete
     """
-    replication = validate_replication(replication)
-    streams = get_streams_from_replication(replication)
+    replication_config = validate_replication(replication_config)
+    streams = get_streams_from_replication(replication_config)
 
     specs: list[AssetSpec] = []
     for stream in streams:

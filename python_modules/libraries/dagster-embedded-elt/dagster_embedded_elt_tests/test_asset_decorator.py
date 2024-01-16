@@ -16,7 +16,7 @@ with replication_path.open("r") as f:
     "replication", [replication, replication_path, os.fspath(replication_path)]
 )
 def test_replication_argument(replication: SlingReplicationParam):
-    @sling_assets(replication=replication)
+    @sling_assets(replication_config=replication)
     def my_sling_assets():
         ...
 
