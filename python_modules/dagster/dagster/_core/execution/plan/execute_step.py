@@ -65,7 +65,7 @@ from dagster._core.execution.plan.inputs import StepInputData
 from dagster._core.execution.plan.objects import StepSuccessData, TypeCheckData
 from dagster._core.execution.plan.outputs import StepOutputData, StepOutputHandle
 from dagster._core.execution.resolve_versions import resolve_step_output_versions
-from dagster._core.storage.tags import BACKFILL_ID_TAG, MEMOIZED_RUN_TAG
+from dagster._core.storage.tags import BACKFILL_ID_TAG, MEMOIZED_RUN_TAG, NONE_OUTPUT_TAG
 from dagster._core.types.dagster_type import DagsterType
 from dagster._utils import iterate_with_context
 from dagster._utils.timing import time_execution_scope
@@ -576,6 +576,7 @@ def _get_output_asset_materializations(
     output_def: OutputDefinition,
     io_manager_metadata: Mapping[str, MetadataValue],
     step_context: StepExecutionContext,
+    handled_none_output: bool = False,
 ) -> Iterator[AssetMaterialization]:
     all_metadata = {**output.metadata, **io_manager_metadata}
 
@@ -620,6 +621,9 @@ def _get_output_asset_materializations(
     backfill_id = step_context.get_tag(BACKFILL_ID_TAG)
     if backfill_id:
         tags[BACKFILL_ID_TAG] = backfill_id
+
+    if handled_none_output:
+        tags[NONE_OUTPUT_TAG] = "True"
 
     if asset_partitions:
         for partition in asset_partitions:
@@ -711,6 +715,7 @@ def _store_output(
 
     manager_materializations = []
     manager_metadata: Dict[str, MetadataValue] = {}
+    handled_none_output = False
 
     # don't store asset check outputs, asset observation outputs, or Nothing type outputs
     step_output = step_context.step.step_output_named(step_output_handle.output_name)
@@ -725,6 +730,7 @@ def _store_output(
             output=output,
             output_def=output_def,
             manager_metadata={},
+            handled_none_output=True,
         )
     # otherwise invoke the I/O manager
     else:
@@ -759,6 +765,7 @@ def _store_output(
                 yield event
 
             manager_metadata = {**manager_metadata, **output_context.consume_logged_metadata()}
+
             if isinstance(elt, DagsterEvent):
                 yield elt
             elif isinstance(elt, AssetMaterialization):
@@ -779,6 +786,10 @@ def _store_output(
             yield event
 
         manager_metadata = {**manager_metadata, **output_context.consume_logged_metadata()}
+        if manager_metadata.get(NONE_OUTPUT_TAG):
+            handled_none_output = True
+            del manager_metadata[NONE_OUTPUT_TAG]
+
         # do not alter explicitly created AssetMaterializations
         for mgr_materialization in manager_materializations:
             if mgr_materialization.metadata and manager_metadata:
@@ -809,6 +820,7 @@ def _store_output(
             output=output,
             output_def=output_def,
             manager_metadata=manager_metadata,
+            handled_none_output=handled_none_output,
         )
 
         yield DagsterEvent.handled_output(
@@ -820,7 +832,7 @@ def _store_output(
 
 
 def _log_asset_materialization_events_for_asset(
-    step_context, output_context, output, output_def, manager_metadata
+    step_context, output_context, output, output_def, manager_metadata, handled_none_output
 ):
     asset_key, partitions = _materializing_asset_key_and_partitions_for_output(output_context)
     if asset_key:
@@ -851,6 +863,7 @@ def _log_asset_materialization_events_for_asset(
                     output_def,
                     manager_metadata,
                     step_context,
+                    handled_none_output=handled_none_output,
                 )
             )
             if execution_type == AssetExecutionType.MATERIALIZATION
