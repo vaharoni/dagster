@@ -576,7 +576,6 @@ def _get_output_asset_materializations(
     output_def: OutputDefinition,
     io_manager_metadata: Mapping[str, MetadataValue],
     step_context: StepExecutionContext,
-    handled_none_output: bool = False,
 ) -> Iterator[AssetMaterialization]:
     all_metadata = {**output.metadata, **io_manager_metadata}
 
@@ -622,7 +621,7 @@ def _get_output_asset_materializations(
     if backfill_id:
         tags[BACKFILL_ID_TAG] = backfill_id
 
-    if handled_none_output:
+    if output.value is None:
         tags[NONE_OUTPUT_TAG] = "True"
 
     if asset_partitions:
@@ -715,7 +714,6 @@ def _store_output(
 
     manager_materializations = []
     manager_metadata: Dict[str, MetadataValue] = {}
-    handled_none_output = False
 
     # don't store asset check outputs, asset observation outputs, or Nothing type outputs
     step_output = step_context.step.step_output_named(step_output_handle.output_name)
@@ -730,7 +728,6 @@ def _store_output(
             output=output,
             output_def=output_def,
             manager_metadata={},
-            handled_none_output=True,
         )
     # otherwise invoke the I/O manager
     else:
@@ -786,9 +783,6 @@ def _store_output(
             yield event
 
         manager_metadata = {**manager_metadata, **output_context.consume_logged_metadata()}
-        if manager_metadata.get(NONE_OUTPUT_TAG):
-            handled_none_output = True
-            del manager_metadata[NONE_OUTPUT_TAG]
 
         # do not alter explicitly created AssetMaterializations
         for mgr_materialization in manager_materializations:
@@ -820,7 +814,6 @@ def _store_output(
             output=output,
             output_def=output_def,
             manager_metadata=manager_metadata,
-            handled_none_output=handled_none_output,
         )
 
         yield DagsterEvent.handled_output(
@@ -832,7 +825,7 @@ def _store_output(
 
 
 def _log_asset_materialization_events_for_asset(
-    step_context, output_context, output, output_def, manager_metadata, handled_none_output
+    step_context, output_context, output, output_def, manager_metadata
 ):
     asset_key, partitions = _materializing_asset_key_and_partitions_for_output(output_context)
     if asset_key:
@@ -863,7 +856,6 @@ def _log_asset_materialization_events_for_asset(
                     output_def,
                     manager_metadata,
                     step_context,
-                    handled_none_output=handled_none_output,
                 )
             )
             if execution_type == AssetExecutionType.MATERIALIZATION
