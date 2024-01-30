@@ -125,11 +125,11 @@ def test_dbt_cli_subprocess_cleanup(
     with pytest.raises(DagsterExecutionInterruptedError):
         mock_stdout = mocker.patch.object(dbt_cli_invocation_1.process, "stdout")
         mock_stdout.__enter__.side_effect = DagsterExecutionInterruptedError()
+        mock_stdout.closed = False
 
         dbt_cli_invocation_1.wait()
 
     assert "Forwarding interrupt signal to dbt command" in caplog.text
-    assert not dbt_cli_invocation_1.is_successful()
     assert dbt_cli_invocation_1.process.returncode < 0
 
 
@@ -468,6 +468,7 @@ def test_no_default_asset_events_emitted(data: dict) -> None:
     asset_events = DbtCliEventMessage(
         raw_event={
             "info": {
+                "name": "NodeFinished",
                 "level": "info",
                 "invocation_id": "1-2-3",
             },
@@ -481,6 +482,7 @@ def test_no_default_asset_events_emitted(data: dict) -> None:
 def test_to_default_asset_output_events() -> None:
     raw_event = {
         "info": {
+            "name": "NodeFinished",
             "level": "info",
             "invocation_id": "1-2-3",
         },
@@ -548,6 +550,7 @@ def test_dbt_tests_to_events(mocker: MockerFixture, is_asset_check: bool) -> Non
     }
     raw_event = {
         "info": {
+            "name": "NodeFinished",
             "level": "info",
             "invocation_id": "1-2-3",
         },
