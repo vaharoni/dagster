@@ -137,7 +137,7 @@ from dagster import ConfigurableResource
 from pydantic import Field
 
 class ResourceWithAlias(ConfigurableResource):
-    _schema: str = Field(alias="schema")
+    my_schema: str = Field(alias="schema")
 
 reveal_type(ResourceWithAlias.__init__)
 
